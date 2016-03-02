@@ -930,20 +930,21 @@ static void php_mysql_do_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 			mysqlnd_end_psession(mysql->conn);
 #endif
 			if (mysql_ping(mysql->conn)) {
-				if (mysql_errno(mysql->conn) == 2006) {
+				mysql_close(mysql->conn);
 #ifndef MYSQL_USE_MYSQLND
-					if (mysql_real_connect(mysql->conn, host, user, passwd, NULL, port, socket, client_flags)==NULL)
+				mysql->conn = mysql_init(NULL);
+				if (mysql_real_connect(mysql->conn, host, user, passwd, NULL, port, socket, client_flags)==NULL)
 #else
-					if (mysqlnd_connect(mysql->conn, host, user, passwd, passwd_len, NULL, 0, port, socket, client_flags TSRMLS_CC) == NULL)
+				mysql->conn = mysql_init(persistent);
+				if (mysqlnd_connect(mysql->conn, host, user, passwd, passwd_len, NULL, 0, port, socket, client_flags TSRMLS_CC) == NULL)
 #endif
-					{
-						php_error_docref(NULL TSRMLS_CC, E_WARNING, "Link to server lost, unable to reconnect");
-						zend_hash_del(&EG(persistent_list), hashed_details, hashed_details_length+1);
-						efree(hashed_details);
-						MYSQL_DO_CONNECT_RETURN_FALSE();
-					}
-					mysql_options(mysql->conn, MYSQL_OPT_LOCAL_INFILE, (char *)&MySG(allow_local_infile));
+				{
+					php_error_docref(NULL TSRMLS_CC, E_WARNING, "Link to server lost, unable to reconnect");
+					zend_hash_del(&EG(persistent_list), hashed_details, hashed_details_length+1);
+					efree(hashed_details);
+					MYSQL_DO_CONNECT_RETURN_FALSE();
 				}
+				mysql_options(mysql->conn, MYSQL_OPT_LOCAL_INFILE, (char *)&MySG(allow_local_infile));
 			} else {
 #ifdef MYSQL_USE_MYSQLND
 				mysqlnd_restart_psession(mysql->conn);
